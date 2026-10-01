@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -181,6 +182,9 @@ func (s *Service) cleanupLoop(ctx context.Context) {
 }
 
 func mustInt(value string) int {
-	port, _ := net.LookupPort("udp", value)
+	port, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || port <= 0 || port > 65535 {
+		return 9999
+	}
 	return port
 }

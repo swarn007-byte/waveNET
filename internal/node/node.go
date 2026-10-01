@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -56,7 +55,12 @@ func New(cfg Config) *Node {
 	}
 
 	for _, seed := range cfg.SeedPeers {
-		n.peers.AddStatic("seed", hostPart(seed), portPart(seed))
+		host, port := hostPart(seed), portPart(seed)
+		if port == "" {
+			logger.Printf("[%s] ignoring malformed seed peer %q (want host:port)", cfg.Name, seed)
+			continue
+		}
+		n.peers.AddStatic(seed, host, port)
 	}
 
 	return n
@@ -167,7 +171,7 @@ func (n *Node) handleConnection(conn net.Conn) {
 
 	var forwarded int
 	for _, peer := range peers {
-		if samePort(peer, n.cfg.TCPPort) {
+		if isSelfAddress(peer, n.cfg.TCPPort) {
 			continue
 		}
 		if err := n.forward(peer, msg); err == nil {
@@ -229,27 +233,40 @@ func portPart(address string) string {
 	return port
 }
 
-func samePort(address, ownPort string) bool {
+func isSelfAddress(address, ownPort string) bool {
 	_, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return false
 	}
-	return port == ownPort
+	if port != ownPort {
+		return false
+	}
+	host, _, _ := net.SplitHostPort(address)
+	return isLocalAddress(host)
 }
 
-// PostDashboardEvent is separated so tests can exercise the event endpoint
-// without starting the full browser UI.
-func PostDashboardEvent(url string, event model.DashboardEvent) error {
-	body, err := json.Marshal(event)
-	if err != nil {
-		return err
+func isLocalAddress(host string) bool {
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
 	}
-
-	resp, err := http.Post(url, "application/json", strings.NewReader(string(body)))
-	if err != nil {
-		return err
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return true
 	}
-	defer resp.Body.Close()
-
-	return nil
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip != nil && ip.String() == host {
+			return true
+		}
+	}
+	return false
 }

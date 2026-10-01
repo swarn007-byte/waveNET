@@ -1,0 +1,9 @@
+delivered_messages.log
+/wavenet
+/node
+/client
+/dashboard
+*.exe
+*.test
+*.out
+.DS_Store

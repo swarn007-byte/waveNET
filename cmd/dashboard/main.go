@@ -68,11 +68,13 @@ func main() {
 	h := newHub()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, dashboardHTML)
 	})
 
 	http.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(h.snapshot())
 			return
 		}
